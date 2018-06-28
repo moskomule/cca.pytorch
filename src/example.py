@@ -2,7 +2,7 @@ from copy import deepcopy
 from pathlib import Path
 
 import torch
-from homura.utils import Trainer
+from homura.utils import Trainer, callbacks
 from homura.vision.models.cifar.resnet import ResNet as OriginalResNet, BasicBlock
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
@@ -65,7 +65,7 @@ def main(batch_size):
     model2 = deepcopy(model)
     optimizer = torch.optim.SGD(params=model.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 30)
-    trainer = Trainer(model, optimizer, F.cross_entropy, scheduler=scheduler)
+    trainer = Trainer(model, optimizer, F.cross_entropy, scheduler=scheduler, callbacks=callbacks.Callback)
     fixed_input = fixed_input.to(trainer._device)
     model2.to(trainer._device)
     for _ in range(100):

@@ -64,13 +64,13 @@ def main(batch_size):
     model = ResNet(BasicBlock, 3, num_classes=10)
     model2 = deepcopy(model)
     optimizer = torch.optim.SGD(params=model.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 30)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 50)
     trainer = Trainer(model, optimizer, F.cross_entropy, scheduler=scheduler, callbacks=callbacks.Callback(),
                       verb=False)
     fixed_input = fixed_input.to(trainer._device)
     model2.to(trainer._device)
-    for _ in range(100):
-        print("---")
+    for ep in range(200):
+        print("{ep:>4}---")
         output1 = model.block_output(fixed_input, 1)
         output2 = model2.block_output(fixed_input, 1)
         sv = svcca_distance(output1.view(batch_size, -1),

@@ -61,7 +61,7 @@ def svcca_distance(x, y, method="svd"):
     x = svd_reduction(x)
     y = svd_reduction(y)
     a, b, diag = cca(x, y, method=method)
-    return 1 - diag.mean()
+    return 1 - diag / (diag > 0).sum().item()
 
 
 def pwcca_distance(x, y, method="svd"):
@@ -79,7 +79,7 @@ def pwcca_distance(x, y, method="svd"):
 
 if __name__ == '__main__':
     a = torch.randn(10, 30)
-    b = torch.randn(10, 30)
+    b = torch.randn(10, 5)
     c = torch.randn(10, 20)
     svcca_distance(a, b)
     pwcca_distance(a, c)

@@ -73,7 +73,8 @@ def pwcca_distance(x, y, method="svd"):
     """
     a, b, diag = cca(x, y, method=method)
     pw = (x @ a).abs().sum(dim=0)
-    return 1 - (pw @ diag) / pw.sum()
+    pw /= pw.sum()
+    return 1 - pw @ diag
 
 
 if __name__ == '__main__':

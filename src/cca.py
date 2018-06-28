@@ -61,7 +61,7 @@ def svcca_distance(x, y, method="svd"):
     x = svd_reduction(x)
     y = svd_reduction(y)
     a, b, diag = cca(x, y, method=method)
-    return 1 - diag / (diag > 0).sum().item()
+    return 1 - diag.sum() / (diag > 0).sum().item()
 
 
 def pwcca_distance(x, y, method="svd"):

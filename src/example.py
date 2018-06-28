@@ -70,7 +70,7 @@ def main(batch_size):
     fixed_input = fixed_input.to(trainer._device)
     model2.to(trainer._device)
     for ep in range(200):
-        print("{ep:>4}---")
+        print(f"{ep:>4}---")
         output1 = model.block_output(fixed_input, 1)
         output2 = model2.block_output(fixed_input, 1)
         sv = svcca_distance(output1.view(batch_size, -1),
@@ -84,4 +84,4 @@ def main(batch_size):
 
 
 if __name__ == '__main__':
-    main(512)
+    main(1024)

@@ -65,7 +65,7 @@ def main(batch_size):
     model2 = deepcopy(model)
     optimizer = torch.optim.SGD(params=model.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 30)
-    trainer = Trainer(model, optimizer, F.cross_entropy, scheduler=scheduler, callbacks=callbacks.Callback)
+    trainer = Trainer(model, optimizer, F.cross_entropy, scheduler=scheduler, callbacks=callbacks.Callback())
     fixed_input = fixed_input.to(trainer._device)
     model2.to(trainer._device)
     for _ in range(100):
@@ -73,7 +73,7 @@ def main(batch_size):
         output2 = model2.block_output(fixed_input, 1)
         distance = pwcca_distance(output1.view(batch_size, -1),
                                   output2.view(batch_size, -1))
-        print(distance)
+        print(distance.item())
         trainer.train(train_loader)
         trainer.test(test_loader)
 

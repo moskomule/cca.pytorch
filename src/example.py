@@ -8,7 +8,7 @@ from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
-from cca import pwcca_distance
+from cca import pwcca_distance, svcca_distance
 
 
 def get_loader(batch_size, root="~/.torch/data/cifar10"):
@@ -65,15 +65,20 @@ def main(batch_size):
     model2 = deepcopy(model)
     optimizer = torch.optim.SGD(params=model.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 30)
-    trainer = Trainer(model, optimizer, F.cross_entropy, scheduler=scheduler, callbacks=callbacks.Callback())
+    trainer = Trainer(model, optimizer, F.cross_entropy, scheduler=scheduler, callbacks=callbacks.Callback(),
+                      verb=False)
     fixed_input = fixed_input.to(trainer._device)
     model2.to(trainer._device)
     for _ in range(100):
+        print("---")
         output1 = model.block_output(fixed_input, 1)
         output2 = model2.block_output(fixed_input, 1)
-        distance = pwcca_distance(output1.view(batch_size, -1),
-                                  output2.view(batch_size, -1))
-        print(distance.item())
+        sv = svcca_distance(output1.view(batch_size, -1),
+                            output2.view(batch_size, -1))
+        print(f">>SVCCA: {sv.item():.4f}")
+        pw = pwcca_distance(output1.view(batch_size, -1),
+                            output2.view(batch_size, -1))
+        print(f">>PWCCA: {pw.item():.4f}")
         trainer.train(train_loader)
         trainer.test(test_loader)
 

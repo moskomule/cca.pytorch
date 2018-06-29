@@ -76,12 +76,12 @@ def main(batch_size):
         sv = svcca_distance(output1.view(batch_size, -1),
                             output2.view(batch_size, -1))
         print(f">>SVCCA: {sv.item():.4f}")
-        pw = pwcca_distance(output1.view(batch_size, -1),
-                            output2.view(batch_size, -1))
-        print(f">>PWCCA: {pw.item():.4f}")
+        # pw = pwcca_distance(output1.view(batch_size, -1),
+        #                     output2.view(batch_size, -1))
+        # print(f">>PWCCA: {pw.item():.4f}")
         trainer.train(train_loader)
         trainer.test(test_loader)
 
 
 if __name__ == '__main__':
-    main(1024)
+    main(2048)

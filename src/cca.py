@@ -3,13 +3,10 @@ import torch
 
 def svd_reduction(tensor: torch.Tensor, accept_rate=0.99):
     left, diag, right = torch.svd(tensor)
-    max_size = len(diag)
     full = diag.abs().sum()
-    for i in range(max_size - 1, 0, -1):
-        if diag[:i].abs().sum() < accept_rate * full:
-            break
-    rank = i + 1
-    return tensor @ right[:, :rank]
+    ratio = diag.abs().cumsum(dim=0) / full
+    num = torch.where(ratio < 0.99, torch.ones(1), torch.zeros(1)).sum()
+    return tensor @ right[:, :int(num)]
 
 
 def zero_mean(tensor: torch.Tensor, dim):
@@ -17,20 +14,15 @@ def zero_mean(tensor: torch.Tensor, dim):
 
 
 def _qr_cca(x, y):
-    q_1, r_1 = x.qr()
-    q_2, r_2 = y.qr()
-    u, diag, v = (q_1.t() @ q_2).svd()
-    a = r_1.inv() @ u
-    b = r_2.inv() @ v
-    return a, b, diag
+    raise NotImplementedError
 
 
 def _svd_cca(x, y):
-    u_1, s_1, v_1 = x.svd(some=True)
-    u_2, s_2, v_2 = y.svd(some=True)
+    u_1, s_1, v_1 = x.svd()
+    u_2, s_2, v_2 = y.svd()
     u, diag, v = (u_1.t() @ u_2).svd()
-    a = v_1 @ (1 / s_1).diag() @ u
-    b = v_2 @ (1 / s_2).diag() @ v
+    a = v_1 @ s_1.reciprocal().diag() @ u
+    b = v_2 @ s_2.reciprocal().diag() @ v
     return a, b, diag
 
 
@@ -74,12 +66,12 @@ def pwcca_distance(x, y, method="svd"):
     a, b, diag = cca(x, y, method=method)
     pw = (x @ a).abs().sum(dim=0)
     pw /= pw.sum()
+    print(pw.shape)
     return 1 - pw @ diag
 
 
 if __name__ == '__main__':
-    a = torch.randn(10, 30)
-    b = torch.randn(10, 5)
-    c = torch.randn(10, 20)
-    svcca_distance(a, b)
-    pwcca_distance(a, c)
+    a = (torch.randn(100, 50) * 10).sin()
+    b = torch.randn(100, 40)
+    print(svcca_distance(a, b))
+    print(pwcca_distance(a, b))

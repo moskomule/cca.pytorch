@@ -5,7 +5,10 @@ def svd_reduction(tensor: torch.Tensor, accept_rate=0.99):
     left, diag, right = torch.svd(tensor)
     full = diag.abs().sum()
     ratio = diag.abs().cumsum(dim=0) / full
-    num = torch.where(ratio < 0.99, torch.ones(1), torch.zeros(1)).sum()
+    num = torch.where(ratio < accept_rate,
+                      torch.ones(1).to(ratio.device),
+                      torch.zeros(1).to(ratio.device)
+                      ).sum()
     return tensor @ right[:, :int(num)]
 
 

@@ -20,10 +20,16 @@ def _qr_cca(x, y):
     raise NotImplementedError
 
 
-def _svd_cca(x, y):
+def _svd_cca(x, y, epsilon=1e-4):
     u_1, s_1, v_1 = x.svd()
     u_2, s_2, v_2 = y.svd()
-    u, diag, v = (u_1.t() @ u_2).svd()
+    try:
+        uu = u_1.t() @ u_2
+        u, diag, v = (uu + epsilon * torch.eye(*uu.shape)).svd()
+    except RuntimeError:
+        print(u_1.shape)
+        print(u_2.shape)
+        exit(1)
     a = v_1 @ s_1.reciprocal().diag() @ u
     b = v_2 @ s_2.reciprocal().diag() @ v
     return a, b, diag
@@ -53,10 +59,12 @@ def svcca_distance(x, y, method="svd"):
     :param y: data matrix [data, neurons]
     :param method: computational method "svd" (default) or "qr"
     """
+    m_1 = x.size(1)
+    m_2 = x.size(1)
     x = svd_reduction(x)
     y = svd_reduction(y)
     a, b, diag = cca(x, y, method=method)
-    return 1 - diag.sum() / (diag > 0).sum().item()
+    return 1 - diag.sum() / min(m_1, m_2)
 
 
 def pwcca_distance(x, y, method="svd"):
@@ -66,10 +74,11 @@ def pwcca_distance(x, y, method="svd"):
     :param y: data matrix [data, neurons]
     :param method: computational method "svd" (default) or "qr"
     """
+    x = svd_reduction(x)
+    y = svd_reduction(y)
     a, b, diag = cca(x, y, method=method)
     pw = (x @ a).abs().sum(dim=0)
     pw /= pw.sum()
-    print(pw.shape)
     return 1 - pw @ diag
 
 

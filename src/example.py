@@ -71,17 +71,17 @@ def main(batch_size):
     model2.to(trainer._device)
     for ep in range(200):
         print(f"{ep:>4}---")
-        output1 = model.block_output(fixed_input, 3)
-        output2 = model2.block_output(fixed_input, 3)
-        sv = svcca_distance(F.adaptive_avg_pool2d(output1, 4).view(batch_size, -1),
-                            F.adaptive_avg_pool2d(output2, 4).view(batch_size, -1))
+        output1 = model.block_output(fixed_input, 1)
+        output2 = model2.block_output(fixed_input, 1)
+        sv = svcca_distance(F.adaptive_avg_pool2d(output1, 2).view(batch_size, -1),
+                            F.adaptive_avg_pool2d(output2, 2).view(batch_size, -1))
         print(f">>SVCCA: {sv.item():.4f}")
-        pw = pwcca_distance(F.adaptive_avg_pool2d(output1, 4).view(batch_size, -1),
-                            F.adaptive_avg_pool2d(output1, 4).view(batch_size, -1))
+        pw = pwcca_distance(F.adaptive_avg_pool2d(output1, 2).view(batch_size, -1),
+                            F.adaptive_avg_pool2d(output2, 2).view(batch_size, -1))
         print(f">>PWCCA: {pw.item():.4f}")
         trainer.train(train_loader)
         trainer.test(test_loader)
 
 
 if __name__ == '__main__':
-    main(1024)
+    main(2048)

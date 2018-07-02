@@ -45,6 +45,7 @@ def cca(x, y, method):
     :return: cca vectors for input x, cca vectors for input y, canonical correlations
     """
     assert x.size(0) == y.size(0), f"Number of data needs to be same but {x.size(0)} and {y.size(0)}"
+    assert x.size(0) >= x.size(1) and y.size(0) >= y.size(1), f"data[0] should be larger than data[1]"
     assert method in ("svd", "qr"), "Unknown method"
 
     x = zero_mean(x, dim=0)
@@ -73,8 +74,6 @@ def pwcca_distance(x, y, method="svd"):
     :param y: data matrix [data, neurons]
     :param method: computational method "svd" (default) or "qr"
     """
-    x = svd_reduction(x)
-    y = svd_reduction(y)
     a, b, diag = cca(x, y, method=method)
     alpha = (x @ a).abs().sum(dim=0)
     alpha = alpha / alpha.sum()

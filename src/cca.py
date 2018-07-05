@@ -28,6 +28,8 @@ def _svd_cca(x, y):
         uu = u_1.t() @ u_2
         u, diag, v = (uu).svd()
     except RuntimeError as e:
+        x = x.abs()
+        y = y.abs()
         print(f"x: min/mean/max {x.min(), x.mean(), x.max()}")
         print(f"y: min/mean/max {y.min(), y.mean(), y.max()}")
         raise e

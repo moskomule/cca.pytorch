@@ -43,8 +43,8 @@ def main(batch_size):
     trainer1 = Trainer(model1, optimizer1, F.cross_entropy, scheduler=scheduler1, callbacks=callbacks.Callback(),
                        verb=False)
     optimizer2 = torch.optim.SGD(params=model2.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
-    scheduler2 = torch.optim.lr_scheduler.StepLR(optimizer1, 50)
-    trainer2 = Trainer(model1, optimizer2, F.cross_entropy, scheduler=scheduler2, callbacks=callbacks.Callback(),
+    scheduler2 = torch.optim.lr_scheduler.StepLR(optimizer2, 50)
+    trainer2 = Trainer(model2, optimizer2, F.cross_entropy, scheduler=scheduler2, callbacks=callbacks.Callback(),
                        verb=False)
     for ep in range(200):
         print(f"{ep:>4}---")

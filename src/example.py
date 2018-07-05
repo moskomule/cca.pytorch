@@ -43,8 +43,8 @@ def main(batch_size):
     scheduler2 = torch.optim.lr_scheduler.StepLR(optimizer2, 50)
     trainer2 = Trainer(model2, optimizer2, F.cross_entropy, scheduler=scheduler2, callbacks=callbacks.Callback(),
                        verb=False)
-    hook = CCAHook([model1, model2], [["layer1.0.conv1", "layer2.0.conv1", "layer3.0.conv1"],
-                                      ["layer1.0.conv1", "layer2.0.conv1", "layer3.0.conv1"]],
+    hook = CCAHook([model1, model2], [["layer1.0.conv1", "layer2.0.conv1", "layer3.0.conv1", "avgpool"],
+                                      ["layer1.0.conv1", "layer2.0.conv1", "layer3.0.conv1", "avgpool"]],
                    train_loader.dataset, batch_size=batch_size)
     for ep in range(200):
         print(f"{ep:>4}---")

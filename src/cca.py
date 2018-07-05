@@ -121,7 +121,9 @@ class CCAHook(object):
         for model, nms in zip(self.models, self.names):
             output = {}
             input = self.fixed_input.to(self._device(model))
-            model(input)
+            with torch.no_grad():
+                model.eval()
+                model(input)
             for n, m in model.named_modules():
                 if n in nms:
                     _output = getattr(m, "_cca_hook", None)

@@ -35,9 +35,6 @@ def main(batch_size):
     train_loader, test_loader = get_loader(128)
     model1 = resnet20(num_classes=10)
     model2 = preact_resnet20(num_classes=10)
-    hook = CCAHook([model1, model2], [["layer1.0.conv1", "layer2.0.conv1", "layer3.0.conv1"],
-                                      ["layer1.0.conv1", "layer2.0.conv1", "layer3.0.conv1"]],
-                   train_loader.dataset, batch_size=batch_size)
     optimizer1 = torch.optim.SGD(params=model1.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
     scheduler1 = torch.optim.lr_scheduler.StepLR(optimizer1, 50)
     trainer1 = Trainer(model1, optimizer1, F.cross_entropy, scheduler=scheduler1, callbacks=callbacks.Callback(),
@@ -46,6 +43,9 @@ def main(batch_size):
     scheduler2 = torch.optim.lr_scheduler.StepLR(optimizer2, 50)
     trainer2 = Trainer(model2, optimizer2, F.cross_entropy, scheduler=scheduler2, callbacks=callbacks.Callback(),
                        verb=False)
+    hook = CCAHook([model1, model2], [["layer1.0.conv1", "layer2.0.conv1", "layer3.0.conv1"],
+                                      ["layer1.0.conv1", "layer2.0.conv1", "layer3.0.conv1"]],
+                   train_loader.dataset, batch_size=batch_size)
     for ep in range(200):
         print(f"{ep:>4}---")
         print(hook.distance())

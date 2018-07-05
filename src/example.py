@@ -54,4 +54,4 @@ def main(batch_size):
 
 
 if __name__ == '__main__':
-    main(2048)
+    main(4096)

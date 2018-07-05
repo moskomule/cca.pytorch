@@ -48,9 +48,9 @@ def main(batch_size):
                        verb=False)
     for ep in range(200):
         print(f"{ep:>4}---")
+        print(hook.distance())
         trainer1.train(train_loader)
         trainer2.train(train_loader)
-        print(hook.distance())
 
 
 if __name__ == '__main__':

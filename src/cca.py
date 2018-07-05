@@ -24,14 +24,12 @@ def zero_mean(tensor: torch.Tensor, dim):
 def _svd_cca(x, y):
     u_1, s_1, v_1 = x.svd()
     u_2, s_2, v_2 = y.svd()
+    uu = u_1.t() @ u_2
     try:
-        uu = u_1.t() @ u_2
         u, diag, v = (uu).svd()
     except RuntimeError as e:
-        x = x.abs()
-        y = y.abs()
-        print(f"x: min/mean/max {x.min(), x.mean(), x.max()}")
-        print(f"y: min/mean/max {y.min(), y.mean(), y.max()}")
+        y = uu.abs()
+        print(f"u_1^Tu_2: min/mean/max {y.min(), y.mean(), y.max()}")
         raise e
     a = v_1 @ s_1.reciprocal().diag() @ u
     b = v_2 @ s_2.reciprocal().diag() @ v
@@ -154,7 +152,12 @@ class CCAHook(object):
         for _name1, _name2 in zip(*self.names):
             _param1 = self.resize(_model1[_name1])
             _param2 = self.resize(_model2[_name2])
-            outputs.append((_name1, _name2, self.cca[method](_param1, _param2).item()))
+            try:
+                distance = self.cca[method](_param1, _param2).item()
+            except Exception as e:
+                print(e)
+                distance = None
+            outputs.append((_name1, _name2, distance))
         return outputs
 
     @staticmethod

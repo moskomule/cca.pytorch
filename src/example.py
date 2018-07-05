@@ -2,7 +2,7 @@ from pathlib import Path
 
 import torch
 from homura.utils import Trainer, callbacks
-from homura.vision.models.cifar.resnet import resnet20, preact_resnet20
+from homura.vision.models.cifar.resnet import resnet20
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
@@ -34,7 +34,7 @@ def get_loader(batch_size, root="~/.torch/data/cifar10"):
 def main(batch_size):
     train_loader, test_loader = get_loader(128)
     model1 = resnet20(num_classes=10)
-    model2 = preact_resnet20(num_classes=10)
+    model2 = resnet20(num_classes=10)
     optimizer1 = torch.optim.SGD(params=model1.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
     scheduler1 = torch.optim.lr_scheduler.StepLR(optimizer1, 50)
     trainer1 = Trainer(model1, optimizer1, F.cross_entropy, scheduler=scheduler1, callbacks=callbacks.Callback(),

@@ -1,14 +1,13 @@
-from copy import deepcopy
 from pathlib import Path
 
 import torch
 from homura.utils import Trainer, callbacks
-from homura.vision.models.cifar.resnet import ResNet as OriginalResNet, BasicBlock
+from homura.vision.models.cifar.resnet import resnet20, preact_resnet20
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
-from cca import pwcca_distance, svcca_distance
+from cca import CCAHook
 
 
 def get_loader(batch_size, root="~/.torch/data/cifar10"):
@@ -32,55 +31,26 @@ def get_loader(batch_size, root="~/.torch/data/cifar10"):
     return train_loader, test_loader
 
 
-class ResNet(OriginalResNet):
-    def block_output(self, input, block_id):
-        assert block_id in (1, 2, 3)
-        self.eval()
-        with torch.no_grad():
-            x = self.conv1(input)
-            x = self.bn1(x)
-            x = self.relu(x)
-
-            x = self.layer1(x)
-            if block_id == 1:
-                return x
-            x = self.layer2(x)
-            if block_id == 2:
-                return x
-            x = self.layer3(x)
-            if block_id == 3:
-                return x
-            raise RuntimeError("No output!")
-
-
 def main(batch_size):
     train_loader, test_loader = get_loader(128)
-    fixed_input, _ = next(iter(torch.utils.data.DataLoader(
-        datasets.CIFAR10(Path("~/.torch/data/cifar10").expanduser(), train=True,
-                         transform=transforms.Compose([transforms.ToTensor(),
-                                                       transforms.Normalize((0.4914, 0.4822, 0.4465),
-                                                                            (0.2023, 0.1994, 0.2010))])),
-        batch_size=batch_size, shuffle=False, num_workers=4)))
-    model = ResNet(BasicBlock, 3, num_classes=10)
-    model2 = deepcopy(model)
-    optimizer = torch.optim.SGD(params=model.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 50)
-    trainer = Trainer(model, optimizer, F.cross_entropy, scheduler=scheduler, callbacks=callbacks.Callback(),
-                      verb=False)
-    fixed_input = fixed_input.to(trainer._device)
-    model2.to(trainer._device)
+    model1 = resnet20(num_classes=10)
+    model2 = preact_resnet20(num_classes=10)
+    hook = CCAHook([model1, model2], [["layer1.0.conv1", "conv2.0.conv1", "layer3.0.conv1"],
+                                      ["layer1.0.conv1", "conv2.0.conv1", "layer3.0.conv1"]],
+                   train_loader.dataset, batch_size=batch_size)
+    optimizer1 = torch.optim.SGD(params=model1.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
+    scheduler1 = torch.optim.lr_scheduler.StepLR(optimizer1, 50)
+    trainer1 = Trainer(model1, optimizer1, F.cross_entropy, scheduler=scheduler1, callbacks=callbacks.Callback(),
+                       verb=False)
+    optimizer2 = torch.optim.SGD(params=model2.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
+    scheduler2 = torch.optim.lr_scheduler.StepLR(optimizer1, 50)
+    trainer2 = Trainer(model1, optimizer2, F.cross_entropy, scheduler=scheduler2, callbacks=callbacks.Callback(),
+                       verb=False)
     for ep in range(200):
         print(f"{ep:>4}---")
-        output1 = model.block_output(fixed_input, 1)
-        output2 = model2.block_output(fixed_input, 1)
-        sv = svcca_distance(F.adaptive_avg_pool2d(output1, 2).view(batch_size, -1),
-                            F.adaptive_avg_pool2d(output2, 2).view(batch_size, -1))
-        print(f">>SVCCA: {sv.item():.4f}")
-        pw = pwcca_distance(F.adaptive_avg_pool2d(output1, 2).view(batch_size, -1),
-                            F.adaptive_avg_pool2d(output2, 2).view(batch_size, -1))
-        print(f">>PWCCA: {pw.item():.4f}")
-        trainer.train(train_loader)
-        trainer.test(test_loader)
+        trainer1.train(train_loader)
+        trainer2.train(train_loader)
+        print(hook.distance())
 
 
 if __name__ == '__main__':

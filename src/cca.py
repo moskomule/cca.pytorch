@@ -157,8 +157,7 @@ class CCAHook(object):
 
     @staticmethod
     def _hook(module, input, output):
-        if not hasattr(module, "_cca_hook"):
-            setattr(module, "_cca_hook", output)
+        setattr(module, "_cca_hook", output)
 
     @staticmethod
     def _device(model):

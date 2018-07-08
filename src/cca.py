@@ -29,7 +29,7 @@ def _svd_cca(x, y):
         u, diag, v = (uu).svd()
     except RuntimeError as e:
         y = uu.abs()
-        print(f"u_1^Tu_2: min/mean/max {y.min(), y.mean(), y.max()}")
+        print(f"u_1^Tu_2: min/mean/max {y.min().item(), y.mean().item(), y.max().item()}")
         raise e
     a = v_1 @ s_1.reciprocal().diag() @ u
     b = v_2 @ s_2.reciprocal().diag() @ v
@@ -109,6 +109,7 @@ class CCAHook(object):
             else:
                 self.names.append(list(nms))
         self.register_hooks()
+        self._history = []
 
     def register_hooks(self):
         for model, nms in zip(self.models, self.names):
@@ -158,7 +159,17 @@ class CCAHook(object):
                 print(e)
                 distance = None
             outputs.append((_name1, _name2, distance))
+        self._history.append(outputs)
         return outputs
+
+    @property
+    def history(self):
+        assert len(self._history) != 0
+        values = [[v if v is not None else 0 for n_1, n_2, v in val]
+                  for val in self._history]
+        values = torch.Tensor(values).t()
+        return {f"{n_1}-{n_2}": v.tolist()
+                for (n_1, n_2), v in zip(zip(*self.names), values)}
 
     @staticmethod
     def _hook(module, input, output):

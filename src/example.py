@@ -53,7 +53,6 @@ def main(batch_size):
         hook.distance()
         print(">>>train", end="")
         trainer1.train(train_loader)
-        print(">>>test")
         trainer2.train(train_loader)
 
     import matplotlib as mpl

@@ -156,7 +156,7 @@ class CCAHook(object):
         tensor1 = self._conv2d_reshape(tensor1, factor)
         tensor2 = self._conv2d_reshape(tensor2, factor)
         d = [None] * tensor1.size(0)
-        for i, t1, t2 in enumerate(zip(tensor1, tensor2)):
+        for i, (t1, t2) in enumerate(zip(tensor1, tensor2)):
             d[i] = self._cca(t1, t2, method).item()
 
         return torch.Tensor([i for i in d if i is not None]).mean()

@@ -48,6 +48,7 @@ def main(batch_size):
                                       ["layer1.0.conv1", "layer2.0.conv1", "layer3.0.conv1", "fc"]],
                    train_loader.dataset, batch_size=batch_size)
     for ep in range(200):
+        print(f"{ep:>5}th epoch")
         hook.distance()
         trainer1.train(train_loader)
         trainer2.train(train_loader)

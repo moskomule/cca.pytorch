@@ -87,7 +87,7 @@ class CCAHook(object):
     _available_modules = {nn.Conv2d, nn.Linear}
 
     def __init__(self, models: Iterable[nn.Module], names: Iterable[Iterable[str] or str],
-                 dataset: Dataset, batch_size=1_024):
+                 dataset: Dataset, batch_size=1_024, svd_cpu=True):
         """
         CCA distance between give two models
         >>>hook = CCAHook([model1, model2], ["layer3.0.conv1", "layer1.0.conv2"], train_loader.dataset)
@@ -97,6 +97,7 @@ class CCAHook(object):
         :param names: names of layers to be compared
         :param dataset: dataset
         :param batch_size: batch size to be used to calculate CCA. Need to be large enough.
+        :param svd_cpu: calculate SVD on CPU
         """
 
         assert len(models) == 2 and len(names) == 2
@@ -113,6 +114,12 @@ class CCAHook(object):
                 self.names.append(list(nms))
         self._register_hooks()
         self._history = []
+        if svd_cpu:
+            from multiprocessing import cpu_count
+
+            torch.set_num_thread(cpu_count())
+
+        self._cpu = svd_cpu
 
     def distance(self, method="pwcca"):
         assert method in ("pwcca", "svcca")
@@ -151,9 +158,9 @@ class CCAHook(object):
                         raise RuntimeError(f"cannot resgister a hook for a module {type(m)}")
                     m.register_forward_hook(self._hook)
 
-    def _cca(self, x, y, method, cpu=True):
+    def _cca(self, x, y, method):
         f = svcca_distance if method == "svcca" else pwcca_distance
-        if cpu:
+        if self._cpu:
             x = x.to("cpu")
             y = y.to("cpu")
         try:

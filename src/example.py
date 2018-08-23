@@ -48,12 +48,12 @@ def main(batch_size):
                                       ["layer1.0.conv1", "layer2.0.conv1", "layer3.0.conv1", "fc"]],
                    train_loader.dataset, batch_size=batch_size)
     for ep in range(200):
-        print(f"{ep:>5}th epoch")
-        print("\r>>>distance", end="")
+        print(f"{ep:>5}th epoch", end=" ")
+        print(">>>distance", end="")
         hook.distance()
-        print("\r>>>train", end="")
+        print(">>>train", end="")
         trainer1.train(train_loader)
-        print("\r>>>test")
+        print(">>>test")
         trainer2.train(train_loader)
 
     import matplotlib as mpl

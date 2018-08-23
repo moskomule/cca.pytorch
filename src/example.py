@@ -49,11 +49,11 @@ def main(batch_size):
                    train_loader.dataset, batch_size=batch_size)
     for ep in range(200):
         print(f"{ep:>5}th epoch")
-        print(">>>distance\r")
+        print("\r>>>distance")
         hook.distance()
-        print(">>>train\r")
+        print("\r>>>train")
         trainer1.train(train_loader)
-        print(">>>test")
+        print("\r>>>test")
         trainer2.train(train_loader)
 
     import matplotlib as mpl

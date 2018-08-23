@@ -115,10 +115,9 @@ class CCAHook(object):
     def register_hooks(self):
         for model, nms in zip(self.models, self.names):
             for n, m in model.named_modules():
-                if type(m) not in self._available_modules:
-                    raise RuntimeError(f"cannot resgister a hook for a module {type(m)}")
-
                 if n in nms:
+                    if type(m) not in self._available_modules:
+                        raise RuntimeError(f"cannot resgister a hook for a module {type(m)}")
                     m.register_forward_hook(self._hook)
 
     def _cca(self, x, y, method):

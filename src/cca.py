@@ -36,14 +36,14 @@ def _svd_cca(x, y):
     return a, b, diag
 
 
-def cca(x, y, method):
+def _cca(x, y, method):
     """
     Canonical Correlation Analysis,
     cf. Press 2011 "Cannonical Correlation Clarified by Singular Value Decomposition"
     :param x: data matrix [data, neurons]
     :param y: data matrix [data, neurons]
     :param method: computational method "svd"  or "qr"
-    :return: cca vectors for input x, cca vectors for input y, canonical correlations
+    :return: _cca vectors for input x, _cca vectors for input y, canonical correlations
     """
     assert x.size(0) == y.size(0), f"Number of data needs to be same but {x.size(0)} and {y.size(0)}"
     assert x.size(0) >= x.size(1) and y.size(0) >= y.size(1), f"data[0] should be larger than data[1]"
@@ -64,7 +64,7 @@ def svcca_distance(x, y, method="svd"):
     x = svd_reduction(x)
     y = svd_reduction(y)
     div = min(x.size(1), y.size(1))
-    a, b, diag = cca(x, y, method=method)
+    a, b, diag = _cca(x, y, method=method)
     return 1 - diag.sum() / div
 
 
@@ -75,15 +75,14 @@ def pwcca_distance(x, y, method="svd"):
     :param y: data matrix [data, neurons]
     :param method: computational method "svd" (default) or "qr"
     """
-    a, b, diag = cca(x, y, method=method)
+    a, b, diag = _cca(x, y, method=method)
     alpha = (x @ a).abs().sum(dim=0)
     alpha = alpha / alpha.sum()
     return 1 - alpha @ diag
 
 
 class CCAHook(object):
-    cca = {"pwcca": pwcca_distance,
-           "svcca": svcca_distance}
+    _available_modules = {nn.Conv2d, nn.Linear}
 
     def __init__(self, models: Iterable[nn.Module], names: Iterable[Iterable[str] or str],
                  dataset: Dataset, batch_size=1_024):
@@ -97,6 +96,8 @@ class CCAHook(object):
         :param dataset: dataset
         :param batch_size: batch size to be used to calculate CCA. Need to be large enough.
         """
+
+        assert len(models) == 2 and len(names) == 2
 
         self.models = models
         self.batch_size = batch_size
@@ -114,8 +115,20 @@ class CCAHook(object):
     def register_hooks(self):
         for model, nms in zip(self.models, self.names):
             for n, m in model.named_modules():
+                if type(m) not in self._available_modules:
+                    raise RuntimeError(f"cannot resgister a hook for a module {type(m)}")
+
                 if n in nms:
                     m.register_forward_hook(self._hook)
+
+    def _cca(self, x, y, method):
+        f = svcca_distance if method == "svcca" else pwcca_distance
+        try:
+            distance = f(x, y)
+        except Exception as e:
+            print(e)
+            distance = None
+        return distance
 
     def collect(self):
         outputs = []
@@ -132,33 +145,40 @@ class CCAHook(object):
             outputs.append(output)
         return outputs
 
-    def resize(self, tensor):
-        # Conv2d
-        if tensor.ndimension() == 4:
-            b, c, h, w = tensor.shape
-            if b <= c * h * w:
-                for i in range(h, 1, -2):
-                    if b > c * i * i:
-                        break
-                if b <= c * i * i:
-                    raise RuntimeError("Batch size is too small")
-                tensor = F.adaptive_avg_pool2d(tensor, i)
-        return tensor.view(self.batch_size, -1)
+    @staticmethod
+    def _conv2d_reshape(tensor, factor):
+        b, c, h, w = tensor.shape
+        tensor = F.adaptive_avg_pool2d(tensor, (h // factor, w // factor))
+        tensor = tensor.reshape(b, c, -1).transpose(0, -1).transpose(-1, -2)
+        return tensor
+
+    def _conv2d(self, tensor1, tensor2, method, factor=2):
+        assert tensor1.shape == tensor2.shape
+        tensor1 = self._conv2d_reshape(tensor1, factor)
+        tensor2 = self._conv2d_reshape(tensor2, factor)
+        d = [None] * tensor1.size(0)
+        for i, t1, t2 in enumerate(zip(tensor1, tensor2)):
+            d[i] = self._cca(t1, t2, method).item()
+
+        return torch.Tensor([i for i in d if i is not None]).mean()
 
     def distance(self, method="pwcca"):
         assert method in ("pwcca", "svcca")
-        assert len(self.models) == 2 and len(self.names) == 2
-        _model1, _model2 = self.collect()
+        model1, model2 = self.collect()
         outputs = []
-        for _name1, _name2 in zip(*self.names):
-            _param1 = self.resize(_model1[_name1])
-            _param2 = self.resize(_model2[_name2])
-            try:
-                distance = self.cca[method](_param1, _param2).item()
-            except Exception as e:
-                print(e)
-                distance = None
-            outputs.append((_name1, _name2, distance))
+        for name1, name2 in zip(*self.names):
+            param1 = model1[name1]
+            param2 = model2[name2]
+            param1_dim = param1.ndimension()
+            param2_dim = param2.ndimension()
+            if param1_dim == 2 and param2_dim == 2:
+                distance = self._cca(param1, param2, method).item()
+            elif param1_dim == 4 and param2_dim == 4:
+                distance = self._conv2d(param1, param2, method).item()
+            else:
+                raise RuntimeError("Tensor shape mismatch!")
+
+            outputs.append((name1, name2, distance))
         self._history.append(outputs)
         return outputs
 

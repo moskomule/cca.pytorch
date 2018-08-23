@@ -36,6 +36,7 @@ def main(batch_size):
 
     for k, v in hook.history.items():
         plt.plot(v, label=k)
+    plt.xticks([0, 30, 50, 100])
     plt.legend()
     plt.savefig("save.png")
 

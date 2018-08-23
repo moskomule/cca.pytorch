@@ -49,9 +49,9 @@ def main(batch_size):
                    train_loader.dataset, batch_size=batch_size)
     for ep in range(200):
         print(f"{ep:>5}th epoch")
-        print("\r>>>distance")
+        print("\r>>>distance", end="")
         hook.distance()
-        print("\r>>>train")
+        print("\r>>>train", end="")
         trainer1.train(train_loader)
         print("\r>>>test")
         trainer2.train(train_loader)

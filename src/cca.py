@@ -151,8 +151,11 @@ class CCAHook(object):
                         raise RuntimeError(f"cannot resgister a hook for a module {type(m)}")
                     m.register_forward_hook(self._hook)
 
-    def _cca(self, x, y, method):
+    def _cca(self, x, y, method, cpu=True):
         f = svcca_distance if method == "svcca" else pwcca_distance
+        if cpu:
+            x = x.to("cpu")
+            y = y.to("cpu")
         try:
             distance = f(x, y)
         except Exception as e:

@@ -117,7 +117,7 @@ class CCAHook(object):
         if svd_cpu:
             from multiprocessing import cpu_count
 
-            torch.set_num_thread(cpu_count())
+            torch.set_num_threads(cpu_count())
 
         self._cpu = svd_cpu
 

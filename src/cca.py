@@ -5,6 +5,8 @@ from torch import nn
 from torch.nn import functional as F
 from torch.utils.data import Dataset, DataLoader
 
+__all__ = ["svcca_distance", "pwcca_distance", "CCAHook"]
+
 
 def svd_reduction(tensor: torch.Tensor, accept_rate=0.99):
     left, diag, right = torch.svd(tensor)
@@ -109,10 +111,39 @@ class CCAHook(object):
                 self.names.append([nms])
             else:
                 self.names.append(list(nms))
-        self.register_hooks()
+        self._register_hooks()
         self._history = []
 
-    def register_hooks(self):
+    def distance(self, method="pwcca"):
+        assert method in ("pwcca", "svcca")
+        model1, model2 = self._collect()
+        outputs = []
+        for name1, name2 in zip(*self.names):
+            param1 = model1[name1]
+            param2 = model2[name2]
+            param1_dim = param1.ndimension()
+            param2_dim = param2.ndimension()
+            if param1_dim == 2 and param2_dim == 2:
+                distance = self._cca(param1, param2, method).item()
+            elif param1_dim == 4 and param2_dim == 4:
+                distance = self._conv2d(param1, param2, method).item()
+            else:
+                raise RuntimeError("Tensor shape mismatch!")
+
+            outputs.append((name1, name2, distance))
+        self._history.append(outputs)
+        return outputs
+
+    @property
+    def history(self):
+        assert len(self._history) != 0
+        values = [[v if v is not None else 0 for n_1, n_2, v in val]
+                  for val in self._history]
+        values = torch.Tensor(values).t()
+        return {f"{n_1}-{n_2}": v.tolist()
+                for (n_1, n_2), v in zip(zip(*self.names), values)}
+
+    def _register_hooks(self):
         for model, nms in zip(self.models, self.names):
             for n, m in model.named_modules():
                 if n in nms:
@@ -129,7 +160,7 @@ class CCAHook(object):
             distance = None
         return distance
 
-    def collect(self):
+    def _collect(self):
         outputs = []
         for model, nms in zip(self.models, self.names):
             output = {}
@@ -160,35 +191,6 @@ class CCAHook(object):
             d[i] = self._cca(t1, t2, method).item()
 
         return torch.Tensor([i for i in d if i is not None]).mean()
-
-    def distance(self, method="pwcca"):
-        assert method in ("pwcca", "svcca")
-        model1, model2 = self.collect()
-        outputs = []
-        for name1, name2 in zip(*self.names):
-            param1 = model1[name1]
-            param2 = model2[name2]
-            param1_dim = param1.ndimension()
-            param2_dim = param2.ndimension()
-            if param1_dim == 2 and param2_dim == 2:
-                distance = self._cca(param1, param2, method).item()
-            elif param1_dim == 4 and param2_dim == 4:
-                distance = self._conv2d(param1, param2, method).item()
-            else:
-                raise RuntimeError("Tensor shape mismatch!")
-
-            outputs.append((name1, name2, distance))
-        self._history.append(outputs)
-        return outputs
-
-    @property
-    def history(self):
-        assert len(self._history) != 0
-        values = [[v if v is not None else 0 for n_1, n_2, v in val]
-                  for val in self._history]
-        values = torch.Tensor(values).t()
-        return {f"{n_1}-{n_2}": v.tolist()
-                for (n_1, n_2), v in zip(zip(*self.names), values)}
 
     @staticmethod
     def _hook(module, input, output):

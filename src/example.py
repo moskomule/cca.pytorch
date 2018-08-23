@@ -51,7 +51,7 @@ def main(batch_size):
         print(f"{ep:>5}th epoch", end=" ")
         print(">>>distance", end="")
         hook.distance()
-        print(">>>train", end="")
+        print(">>>train")
         trainer1.train(train_loader)
         trainer2.train(train_loader)
 

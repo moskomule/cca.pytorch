@@ -1,4 +1,4 @@
-from typing import Iterable
+from __future__ import annotations
 
 import torch
 from torch import nn
@@ -31,7 +31,6 @@ def _svd_cca(x, y):
         u, diag, v = (uu).svd()
     except RuntimeError as e:
         y = uu.abs()
-        print(f"u_1^Tu_2: min/mean/max {y.min().item(), y.mean().item(), y.max().item()}")
         raise e
     a = v_1 @ s_1.reciprocal().diag() @ u
     b = v_2 @ s_2.reciprocal().diag() @ v
@@ -83,132 +82,95 @@ def pwcca_distance(x, y, method="svd"):
     return 1 - alpha @ diag
 
 
+def _conv2d_reshape(tensor, size):
+    b, c, h, w = tensor.shape
+    if size is not None:
+        if (size, size) > (h, w):
+            raise RuntimeError(f"`size` should be smaller than the tensor's size but ({h}, {w})")
+        tensor = F.adaptive_avg_pool2d(tensor, size)
+    tensor = tensor.reshape(b, c, -1).transpose(0, -1).transpose(-1, -2)
+    return tensor
+
+
+def _conv2d(tensor1, tensor2, cca_function, size):
+    if tensor1.shape != tensor2.shape:
+        raise RuntimeError("tensors' shapes are incompatible!")
+    tensor1 = _conv2d_reshape(tensor1, size)
+    tensor2 = _conv2d_reshape(tensor2, size)
+    return torch.Tensor([cca_function(t1, t2)
+                         for t1, t2 in zip(tensor1, tensor2)]).mean()
+
+
 class CCAHook(object):
-    _available_modules = {nn.Conv2d, nn.Linear}
+    _supported_modules = (nn.Conv2d, nn.Linear)
 
-    def __init__(self, models: Iterable[nn.Module], names: Iterable[Iterable[str] or str],
-                 dataset: Dataset, batch_size=1_024, svd_cpu=True):
+    def __init__(self, model: nn.Module, name: str, *, cca_function=pwcca_distance, svd_cpu=True):
         """
-        CCA distance between give two models
-        >>>hook = CCAHook([model1, model2], ["layer3.0.conv1", "layer1.0.conv2"], train_loader.dataset)
-        >>>hook.distance("pwcca")
-        # [('layer3.0.conv1', 'layer3.0.conv2', 0.5082974433898926)]
-        :param models: a pair of models
-        :param names: names of layers to be compared
-        :param dataset: dataset
-        :param batch_size: batch size to be used to calculate CCA. Need to be large enough.
-        :param svd_cpu: calculate SVD on CPU
+        Hook to calculate CCA distance between outputs of layers
+        >>> hook1 = CCAHook(model1, "layer3.0.conv1")
+        >>> hook2 = CCAHook(model1, "layer3.0.conv2")
+        >>> model1(torch.randn(1200, 3, 32, 32))
+        >>> hook1.distance(hook2, 8)
+        :param model:
+        :param name:
+        :param cca_function
+        :param svd_cpu:
         """
-
-        assert len(models) == 2 and len(names) == 2
-
-        self.models = models
-        self.batch_size = batch_size
-        data_loader = DataLoader(dataset, batch_size=self.batch_size, num_workers=4, shuffle=True)
-        self.fixed_input, _ = next(iter(data_loader))
-        self.names = []
-        for nms in names:
-            if isinstance(nms, str):
-                self.names.append([nms])
-            else:
-                self.names.append(list(nms))
-        self._register_hooks()
-        self._history = []
+        self.model = model
+        self.name = name
+        _dict = {n: m for n, m in self.model.named_modules()}
+        if self.name not in _dict.keys():
+            raise NameError(f"No such name ({self.name}) in the model")
+        if type(_dict[self.name]) not in self._supported_modules:
+            raise TypeError(f"{type(_dict[self.name])} is not supported")
+        self._module = _dict[self.name]
+        self._module = {n: m for n, m in self.model.named_modules()}[self.name]
+        self._key = f"_{self.name}_hooked_value"
+        setattr(self._module, self._key, None)
+        self._register_hook()
+        self._cca_function = cca_function
         if svd_cpu:
             from multiprocessing import cpu_count
 
             torch.set_num_threads(cpu_count())
 
-        self._cpu = svd_cpu
+        self._cpu = svd_cpu and torch.cuda.is_available()
 
-    def distance(self, method="pwcca"):
-        assert method in ("pwcca", "svcca")
-        model1, model2 = self._collect()
-        outputs = []
-        for name1, name2 in zip(*self.names):
-            param1 = model1[name1]
-            param2 = model2[name2]
-            param1_dim = param1.ndimension()
-            param2_dim = param2.ndimension()
-            if param1_dim == 2 and param2_dim == 2:
-                distance = self._cca(param1, param2, method).item()
-            elif param1_dim == 4 and param2_dim == 4:
-                distance = self._conv2d(param1, param2, method).item()
-            else:
-                raise RuntimeError("Tensor shape mismatch!")
+    def clear(self):
+        setattr(self._module, self._key, None)
 
-            outputs.append((name1, name2, distance))
-        self._history.append(outputs)
-        return outputs
-
-    @property
-    def history(self):
-        assert len(self._history) != 0
-        values = [[v if v is not None else 0 for n_1, n_2, v in val]
-                  for val in self._history]
-        values = torch.Tensor(values).t()
-        return {f"{n_1}-{n_2}": v.tolist()
-                for (n_1, n_2), v in zip(zip(*self.names), values)}
-
-    def _register_hooks(self):
-        for model, nms in zip(self.models, self.names):
-            for n, m in model.named_modules():
-                if n in nms:
-                    if type(m) not in self._available_modules:
-                        raise RuntimeError(f"cannot resgister a hook for a module {type(m)}")
-                    m.register_forward_hook(self._hook)
-
-    def _cca(self, x, y, method):
-        f = svcca_distance if method == "svcca" else pwcca_distance
+    def distance(self, other: CCAHook, size: int or tuple = None):
+        tensor1 = self._get_hooked_value()
+        tensor2 = other._get_hooked_value()
+        if tensor1.ndimension() != tensor2.ndimension():
+            raise RuntimeError("tensor dimensions are incompatible!")
         if self._cpu:
-            x = x.to("cpu")
-            y = y.to("cpu")
-        try:
-            distance = f(x, y)
-        except Exception as e:
-            print(e)
-            distance = None
-        return distance
-
-    def _collect(self):
-        outputs = []
-        for model, nms in zip(self.models, self.names):
-            output = {}
-            input = self.fixed_input.to(self._device(model))
-            with torch.no_grad():
-                model.eval()
-                model(input)
-            for n, m in model.named_modules():
-                if n in nms:
-                    _output = getattr(m, "_cca_hook", None)
-                    output[n] = _output
-            outputs.append(output)
-        return outputs
+            tensor1 = tensor1.to("cpu")
+            tensor2 = tensor2.to("cpu")
+        if type(self._module) == nn.Linear:
+            return self._cca_function(tensor1, tensor2)
+        elif type(self._module) == nn.Conv2d:
+            return _conv2d(tensor1, tensor2, self._cca_function, size)
 
     @staticmethod
-    def _conv2d_reshape(tensor, factor):
-        b, c, h, w = tensor.shape
-        tensor = F.adaptive_avg_pool2d(tensor, (h // factor, w // factor))
-        tensor = tensor.reshape(b, c, -1).transpose(0, -1).transpose(-1, -2)
-        return tensor
+    def data(dataset: Dataset, batch_size: int):
+        data_loader = DataLoader(dataset, batch_size=batch_size, num_workers=4, shuffle=True)
+        input, _ = next(iter(data_loader))
+        return input
 
-    def _conv2d(self, tensor1, tensor2, method, factor=2):
-        assert tensor1.shape == tensor2.shape
-        tensor1 = self._conv2d_reshape(tensor1, factor)
-        tensor2 = self._conv2d_reshape(tensor2, factor)
-        d = [None] * tensor1.size(0)
-        for i, (t1, t2) in enumerate(zip(tensor1, tensor2)):
-            d[i] = self._cca(t1, t2, method).item()
+    def _register_hook(self):
+        key = self._key
 
-        return torch.Tensor([i for i in d if i is not None]).mean()
+        def hook(module, _, output):
+            setattr(module, key, output)
 
-    @staticmethod
-    def _hook(module, input, output):
-        setattr(module, "_cca_hook", output)
+        self._module.register_forward_hook(hook)
 
-    @staticmethod
-    def _device(model):
-        return next(model.parameters()).device
+    def _get_hooked_value(self):
+        value = getattr(self._module, self._key)
+        if value is None:
+            raise RuntimeError("Please do model.forward() before CCA!")
+        return value
 
 
 if __name__ == '__main__':
@@ -218,6 +180,11 @@ if __name__ == '__main__':
     train_loader, test_loader = get_loader(64, )
     model1 = resnet20(num_classes=10)
     model2 = resnet20(num_classes=10)
-    hook = CCAHook([model1, model2], [["layer3.0.conv1", "layer1.0.conv2"], ["layer3.0.conv2", "layer1.0.conv1"]],
-                   train_loader.dataset, batch_size=1024)
-    print(hook.distance())
+    hook1 = CCAHook(model1, "layer3.0.conv1")
+    hook2 = CCAHook(model2, "layer3.0.conv1")
+    data = CCAHook.data(train_loader.dataset, 100)
+    model1(data)
+    model2(data)
+    print(hook1.distance(hook2))
+    hook1.clear()
+    hook2.clear()

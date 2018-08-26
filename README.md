@@ -7,6 +7,6 @@ This project is still work in progress.
 
 # Prerequirements
 
-* Python>=3.6
+* Python>=3.7
 * PyTorch>=0.4
 * torchvision>=0.2.1

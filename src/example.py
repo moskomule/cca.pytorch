@@ -31,40 +31,40 @@ def get_loader(batch_size, root="~/.torch/data/cifar10"):
         batch_size=batch_size, shuffle=True, num_workers=4)
     return train_loader, test_loader
 
-
-def main(batch_size):
-    train_loader, test_loader = get_loader(128)
-    model1 = resnet20(num_classes=10)
-    model2 = deepcopy(model1)
-    optimizer1 = torch.optim.SGD(params=model1.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
-    scheduler1 = torch.optim.lr_scheduler.StepLR(optimizer1, 50)
-    trainer1 = Trainer(model1, optimizer1, F.cross_entropy, scheduler=scheduler1, callbacks=callbacks.Callback(),
-                       verb=False)
-    optimizer2 = torch.optim.SGD(params=model2.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
-    scheduler2 = torch.optim.lr_scheduler.StepLR(optimizer2, 50)
-    trainer2 = Trainer(model2, optimizer2, F.cross_entropy, scheduler=scheduler2, callbacks=callbacks.Callback(),
-                       verb=False)
-    hook = CCAHook([model1, model2], [["layer1.0.conv1", "layer2.0.conv1", "layer3.0.conv1", "fc"],
-                                      ["layer1.0.conv1", "layer2.0.conv1", "layer3.0.conv1", "fc"]],
-                   train_loader.dataset, batch_size=batch_size)
-    for ep in range(200):
-        print(f"{ep:>5}th epoch", end=" ")
-        print(">>>distance", end="")
-        hook.distance()
-        print(">>>train")
-        trainer1.train(train_loader)
-        trainer2.train(train_loader)
-
-    import matplotlib as mpl
-
-    mpl.use('Agg')
-    import matplotlib.pyplot as plt
-
-    for k, v in hook.history.items():
-        plt.plot(v, label=k)
-    plt.legend()
-    plt.savefig("save.png")
-
-
-if __name__ == '__main__':
-    main(6400)
+#
+# def main(batch_size):
+#     train_loader, test_loader = get_loader(128)
+#     model1 = resnet20(num_classes=10)
+#     model2 = deepcopy(model1)
+#     optimizer1 = torch.optim.SGD(params=model1.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
+#     scheduler1 = torch.optim.lr_scheduler.StepLR(optimizer1, 50)
+#     trainer1 = Trainer(model1, optimizer1, F.cross_entropy, scheduler=scheduler1, callbacks=callbacks.Callback(),
+#                        verb=False)
+#     optimizer2 = torch.optim.SGD(params=model2.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
+#     scheduler2 = torch.optim.lr_scheduler.StepLR(optimizer2, 50)
+#     trainer2 = Trainer(model2, optimizer2, F.cross_entropy, scheduler=scheduler2, callbacks=callbacks.Callback(),
+#                        verb=False)
+#     hook = _CCAHook([model1, model2], [["layer1.0.conv1", "layer2.0.conv1", "layer3.0.conv1", "fc"],
+#                                        ["layer1.0.conv1", "layer2.0.conv1", "layer3.0.conv1", "fc"]],
+#                     train_loader.dataset, batch_size=batch_size)
+#     for ep in range(200):
+#         print(f"{ep:>5}th epoch", end=" ")
+#         print(">>>distance", end="")
+#         hook.distance()
+#         print(">>>train")
+#         trainer1.train(train_loader)
+#         trainer2.train(train_loader)
+#
+#     import matplotlib as mpl
+#
+#     mpl.use('Agg')
+#     import matplotlib.pyplot as plt
+#
+#     for k, v in hook.history.items():
+#         plt.plot(v, label=k)
+#     plt.legend()
+#     plt.savefig("save.png")
+#
+#
+# if __name__ == '__main__':
+#     main(6400)

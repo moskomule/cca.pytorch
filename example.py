@@ -46,14 +46,17 @@ def main(batch_size):
         trainer.train(train_loader)
     hooks1 = [CCAHook(model, name) for name in layers]
     hooks2 = [CCAHook(model2, name) for name in layers]
-    input = hooks1[0].data(train_loader.dataset, batch_size=batch_size)
+    device = next(model.parameters()).device
+    model2.to(device)
+    input = hooks1[0].data(train_loader.dataset, batch_size=batch_size).to(device)
     history = []
 
     def distance():
         model.eval()
         model2.eval()
-        model(input)
-        model2(input)
+        with torch.no_grad():
+            model(input)
+            model2(input)
         return [h1.distance(h2) for h1, h2 in zip(hooks1, hooks2)]
 
     history.append(distance())

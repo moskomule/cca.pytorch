@@ -63,16 +63,16 @@ def main(batch_size):
     for ep in (29, 49, 99):
         saved = torch.load(weight_save.save_path / f"{ep}.pkl")
         model2.load_state_dict(saved["model"])
-        distance()
+        history.append(distance())
 
     import matplotlib as mpl
 
     mpl.use('Agg')
     import matplotlib.pyplot as plt
 
+    x = [0, 30, 50, 100]
     for k, v in zip(layers, torch.Tensor(history).t().tolist()):
-        plt.plot(v, label=k)
-    plt.xticks(["0", "30", "50", "100"])
+        plt.plot(x, v, label=k)
     plt.legend()
     plt.savefig("save.png")
 

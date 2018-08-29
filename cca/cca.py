@@ -163,9 +163,9 @@ class CCAHook(object):
             tensor1 = tensor1.to("cpu")
             tensor2 = tensor2.to("cpu")
         if type(self._module) == nn.Linear:
-            return self._cca_distance(tensor1, tensor2)
+            return self._cca_distance(tensor1, tensor2).item()
         elif type(self._module) == nn.Conv2d:
-            return _conv2d(tensor1, tensor2, self._cca_distance, size)
+            return _conv2d(tensor1, tensor2, self._cca_distance, size).item()
 
     @staticmethod
     def data(dataset: Dataset, batch_size: int, *, num_workers: int = 2):

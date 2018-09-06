@@ -19,7 +19,7 @@ from cca import CCAHook
 hook1 = CCAHook(model, "layer3.0.conv1")
 hook2 = CCAHook(model, "layer3.0.conv2")
 model.eval()
-with torch.nograd():
+with torch.no_grad():
     model(torch.randn(1200, 3, 224, 224))
 hook1.distance(hook2, size=8) # resize to 8x8
 ```

@@ -125,7 +125,7 @@ class CCAHook(object):
             cca_distance = self._cca_distance_function[cca_distance]
         self._cca_distance = cca_distance
 
-        if svd_device not in ("cpu", "gpu"):
+        if svd_device not in ("cpu", "cuda"):
             raise RuntimeError(f"Unknown device name {svd_device}")
 
         if svd_device == "cpu":

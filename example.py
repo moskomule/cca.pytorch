@@ -2,8 +2,8 @@ from copy import deepcopy
 from pathlib import Path
 
 import torch
-from homura.utils import Trainer, callbacks
-from homura.vision.models.cifar.resnet import resnet20
+from homura import trainers, callbacks
+from homura.vision.models.classification import resnet20
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
@@ -40,8 +40,8 @@ def main(batch_size):
     model2 = deepcopy(model)
     optimizer = torch.optim.SGD(params=model.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 50)
-    trainer = Trainer(model, optimizer, F.cross_entropy, scheduler=scheduler,
-                      callbacks=weight_save, verb=False)
+    trainer = trainers.SupervisedTrainer(model, optimizer, F.cross_entropy, scheduler=scheduler,
+                                         callbacks=weight_save, verb=False)
     for ep in range(100):
         trainer.train(train_loader)
     hooks1 = [CCAHook(model, name) for name in layers]

@@ -1,3 +1,5 @@
+from typing import Callable
+
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -80,44 +82,30 @@ def pwcca_distance(x, y, method="svd"):
     return 1 - alpha @ diag
 
 
-def _conv2d_reshape(tensor, size):
-    b, c, h, w = tensor.shape
-    if size is not None:
-        if (size, size) > (h, w):
-            raise RuntimeError(f"`size` should be smaller than the tensor's size but ({h}, {w})")
-        tensor = F.adaptive_avg_pool2d(tensor, size)
-    tensor = tensor.reshape(b, c, -1).permute(2, 0, 1)
-    return tensor
-
-
-def _conv2d(tensor1, tensor2, cca_function, size):
-    if tensor1.shape != tensor2.shape:
-        raise RuntimeError("tensors' shapes are incompatible!")
-    tensor1 = _conv2d_reshape(tensor1, size)
-    tensor2 = _conv2d_reshape(tensor2, size)
-    return torch.Tensor([cca_function(t1, t2)
-                         for t1, t2 in zip(tensor1, tensor2)]).mean()
-
-
 class CCAHook(object):
+    """
+    Hook to calculate CCA distance between outputs of layers
+    >>> model = resnet18()
+    >>> hook1 = CCAHook(model, "layer3.0.conv1")
+    >>> hook2 = CCAHook(model, "layer3.0.conv2")
+    >>> model.eval()
+    >>> model(torch.randn(1200, 3, 224, 224))
+    >>> hook1.distance(hook2, 8)
+    :param model: nn.Module model
+    :param name: name of the layer you use
+    :param cca_distance ("pwcca_distance" or "svcca_distance"). "pwcca_distance" by default
+    :param svd_cpu: specifies if you use cpu for SVD (maybe faster). True by default
+    """
+
     _supported_modules = (nn.Conv2d, nn.Linear)
     _cca_distance_function = {"svcca": svcca_distance,
                               "pwcca": pwcca_distance}
 
-    def __init__(self, model: nn.Module, name: str, *, cca_distance: str or function = pwcca_distance, svd_cpu=True):
-        """
-        Hook to calculate CCA distance between outputs of layers
-        >>> model = resnet18()
-        >>> hook1 = CCAHook(model, "layer3.0.conv1")
-        >>> hook2 = CCAHook(model, "layer3.0.conv2")
-        >>> model.eval()
-        >>> model(torch.randn(1200, 3, 224, 224))
-        >>> hook1.distance(hook2, 8)
-        :param model: nn.Module model
-        :param name: name of the layer you use
-        :param cca_distance ("pwcca_distance" or "svcca_distance"). "pwcca_distance" by default
-        :param svd_cpu: specifies if you use cpu for SVD (maybe faster). True by default
-        """
+    def __init__(self,
+                 model: nn.Module,
+                 name: str, *,
+                 cca_distance: str or Callable = pwcca_distance,
+                 svd_cpu=True):
 
         self.model = model
         self.name = name
@@ -129,8 +117,7 @@ class CCAHook(object):
 
         self._module = _dict[self.name]
         self._module = {n: m for n, m in self.model.named_modules()}[self.name]
-        self._key = f"_{self.name}_hooked_value"
-        setattr(self._module, self._key, None)
+        self._hooked_value = None
         self._register_hook()
         if type(cca_distance) == str:
             cca_distance = self._cca_distance_function[cca_distance]
@@ -139,14 +126,13 @@ class CCAHook(object):
             from multiprocessing import cpu_count
 
             torch.set_num_threads(cpu_count())
-
         self._cpu = svd_cpu and torch.cuda.is_available()
 
     def clear(self):
         """
         clear the hooked tensor
         """
-        setattr(self._module, self._key, None)
+        self._hooked_value = None
 
     def distance(self, other, size: int or tuple = None):
         """
@@ -155,17 +141,48 @@ class CCAHook(object):
         :param size: if two tensor's size are
         :return: CCA distance
         """
-        tensor1 = self._get_hooked_value()
-        tensor2 = other._get_hooked_value()
+        tensor1 = self.get_hooked_value()
+        tensor2 = other.get_hooked_value()
         if tensor1.dim() != tensor2.dim():
             raise RuntimeError("tensor dimensions are incompatible!")
         if self._cpu:
             tensor1 = tensor1.to("cpu")
             tensor2 = tensor2.to("cpu")
-        if type(self._module) == nn.Linear:
+        if isinstance(self._module, nn.Linear):
             return self._cca_distance(tensor1, tensor2).item()
-        elif type(self._module) == nn.Conv2d:
-            return _conv2d(tensor1, tensor2, self._cca_distance, size).item()
+        elif isinstance(self._module, nn.Conv2d):
+            return CCAHook._conv2d(tensor1, tensor2, self._cca_distance, size).item()
+
+    def _register_hook(self):
+
+        def hook(_, __, output):
+            self._hooked_value = output
+
+        self._module.register_forward_hook(hook)
+
+    def get_hooked_value(self):
+        if self._hooked_value is None:
+            raise RuntimeError("Please do model.forward() before CCA!")
+        return self._hooked_value
+
+    @staticmethod
+    def _conv2d_reshape(tensor, size):
+        b, c, h, w = tensor.shape
+        if size is not None:
+            if (size, size) > (h, w):
+                raise RuntimeError(f"`size` should be smaller than the tensor's size but ({h}, {w})")
+            tensor = F.adaptive_avg_pool2d(tensor, size)
+        tensor = tensor.reshape(b, c, -1).permute(2, 0, 1)
+        return tensor
+
+    @staticmethod
+    def _conv2d(tensor1, tensor2, cca_function, size):
+        if tensor1.shape != tensor2.shape:
+            raise RuntimeError("tensors' shapes are incompatible!")
+        tensor1 = CCAHook._conv2d_reshape(tensor1, size)
+        tensor2 = CCAHook._conv2d_reshape(tensor2, size)
+        return torch.Tensor([cca_function(t1, t2)
+                             for t1, t2 in zip(tensor1, tensor2)]).mean()
 
     @staticmethod
     def data(dataset: Dataset, batch_size: int, *, num_workers: int = 2):
@@ -179,17 +196,3 @@ class CCAHook(object):
         data_loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, shuffle=True)
         input, _ = next(iter(data_loader))
         return input
-
-    def _register_hook(self):
-        key = self._key
-
-        def hook(module, _, output):
-            setattr(module, key, output)
-
-        self._module.register_forward_hook(hook)
-
-    def _get_hooked_value(self):
-        value = getattr(self._module, self._key)
-        if value is None:
-            raise RuntimeError("Please do model.forward() before CCA!")
-        return value

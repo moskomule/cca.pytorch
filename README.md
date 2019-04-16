@@ -9,8 +9,11 @@ PyTorch implementation of
 * Python>=3.6
 * PyTorch>=0.4.1
 * torchvision>=0.2.1
-* [homura](ttps://github.com/moskomule/homura) (to run `example.py`)
-* matplotlib (to run `example.py`)
+
+To run `example.py`, you also need
+
+* [homura](https://github.com/moskomule/homura)
+* matplotlib
 
 # Usage
 

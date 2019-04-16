@@ -126,7 +126,7 @@ class CCAHook(object):
             from multiprocessing import cpu_count
 
             torch.set_num_threads(cpu_count())
-        self._cpu = svd_cpu and torch.cuda.is_available()
+        self._use_cpu = svd_cpu and torch.cuda.is_available()
 
     def clear(self):
         """
@@ -141,11 +141,13 @@ class CCAHook(object):
         :param size: if two tensor's size are
         :return: CCA distance
         """
+
         tensor1 = self.get_hooked_value()
         tensor2 = other.get_hooked_value()
+
         if tensor1.dim() != tensor2.dim():
             raise RuntimeError("tensor dimensions are incompatible!")
-        if self._cpu:
+        if self._use_cpu:
             tensor1 = tensor1.to("cpu")
             tensor2 = tensor2.to("cpu")
         if isinstance(self._module, nn.Linear):

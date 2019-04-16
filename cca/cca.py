@@ -153,7 +153,7 @@ class CCAHook(object):
 
         if tensor1.dim() != tensor2.dim():
             raise RuntimeError("tensor dimensions are incompatible!")
-        if self._svd_device:
+        if self._svd_device == "cpu":
             tensor1 = tensor1.to(self._svd_device)
             tensor2 = tensor2.to(self._svd_device)
         if isinstance(self._module, nn.Linear):

@@ -8,6 +8,8 @@ from torchvision.models import resnet18
 
 __all__ = ["svcca_distance", "pwcca_distance", "CCAHook"]
 
+_device = "cuda" if torch.cuda.is_available() else "cpu"
+
 
 def svd_reduction(tensor: torch.Tensor, accept_rate=0.99):
     left, diag, right = torch.svd(tensor)
@@ -94,7 +96,7 @@ class CCAHook(object):
     :param model: nn.Module model
     :param name: name of the layer you use
     :param cca_distance ("pwcca_distance" or "svcca_distance"). "pwcca_distance" by default
-    :param svd_cpu: specifies if you use cpu for SVD (maybe faster). True by default
+    :param svd_device:
     """
 
     _supported_modules = (nn.Conv2d, nn.Linear)
@@ -105,7 +107,7 @@ class CCAHook(object):
                  model: nn.Module,
                  name: str, *,
                  cca_distance: str or Callable = pwcca_distance,
-                 svd_cpu=True):
+                 svd_device: str or torch.device = _device):
 
         self.model = model
         self.name = name
@@ -122,11 +124,15 @@ class CCAHook(object):
         if type(cca_distance) == str:
             cca_distance = self._cca_distance_function[cca_distance]
         self._cca_distance = cca_distance
-        if svd_cpu:
+
+        if svd_device not in ("cpu", "gpu"):
+            raise RuntimeError(f"Unknown device name {svd_device}")
+
+        if svd_device == "cpu":
             from multiprocessing import cpu_count
 
             torch.set_num_threads(cpu_count())
-        self._use_cpu = svd_cpu and torch.cuda.is_available()
+        self._svd_device = svd_device
 
     def clear(self):
         """
@@ -147,9 +153,9 @@ class CCAHook(object):
 
         if tensor1.dim() != tensor2.dim():
             raise RuntimeError("tensor dimensions are incompatible!")
-        if self._use_cpu:
-            tensor1 = tensor1.to("cpu")
-            tensor2 = tensor2.to("cpu")
+        if self._svd_device:
+            tensor1 = tensor1.to(self._svd_device)
+            tensor2 = tensor2.to(self._svd_device)
         if isinstance(self._module, nn.Linear):
             return self._cca_distance(tensor1, tensor2).item()
         elif isinstance(self._module, nn.Conv2d):

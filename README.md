@@ -4,6 +4,8 @@ PyTorch implementation of
 * [**﻿SVCCA: Singular Vector Canonical Correlation Analysis for Deep Learning Dynamics and Interpretability**](https://arxiv.org/abs/1706.05806) 
 * [**﻿Insights on representational similarity in neural networks with canonical correlation**](https://arxiv.org/abs/1806.05759)
 
+**Now GPU is set as the default device for SVD calculation.**
+
 # Requirements
 
 * Python>=3.6
@@ -19,8 +21,9 @@ To run `example.py`, you also need
 
 ```python
 from cca import CCAHook
-hook1 = CCAHook(model, "layer3.0.conv1")
-hook2 = CCAHook(model, "layer3.0.conv2")
+device = "cuda" # or "cpu"
+hook1 = CCAHook(model, "layer3.0.conv1", svd_device=device)
+hook2 = CCAHook(model, "layer3.0.conv2", svd_device=device)
 model.eval()
 with torch.no_grad():
     model(torch.randn(1200, 3, 224, 224))

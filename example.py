@@ -30,7 +30,7 @@ def main(batch_size):
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 50)
     trainer = trainers.SupervisedTrainer(model, optimizer, F.cross_entropy, scheduler=scheduler,
                                          callbacks=weight_save, verb=False)
-    for ep in trange(100, num_cols=80):
+    for ep in trange(100, ncols=80):
         trainer.train(train_loader)
 
     hooks1 = [CCAHook(model, name, svd_cpu=args.gpuonly) for name in layers]

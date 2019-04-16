@@ -33,8 +33,8 @@ def main(batch_size):
     for ep in trange(100, ncols=80):
         trainer.train(train_loader)
 
-    hooks1 = [CCAHook(model, name, svd_device=args.gpuonly) for name in layers]
-    hooks2 = [CCAHook(model2, name, svd_device=args.gpuonly) for name in layers]
+    hooks1 = [CCAHook(model, name, svd_device=args.device) for name in layers]
+    hooks2 = [CCAHook(model2, name, svd_device=args.device) for name in layers]
     device = next(model.parameters()).device
     model2.to(device)
     input = hooks1[0].data(train_loader.dataset, batch_size=batch_size).to(device)
@@ -63,6 +63,6 @@ if __name__ == '__main__':
     from argparse import ArgumentParser
 
     p = ArgumentParser()
-    p.add_argument("--gpuonly", action="store_true")
+    p.add_argument("--device", choices=["cuda", "cpu"], default="cpu")
     args = p.parse_args()
     main(6400)

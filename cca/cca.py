@@ -187,7 +187,6 @@ class CCAHook(object):
             tensor = F.adaptive_avg_pool1d(tensor, size)
             print("yes")
         tensor = tensor.reshape(-1, c, 1).permute(2, 0, 1)
-        #print('tensor shape conv1d:{}'.format(tensor.shape))
         return tensor
 
     @staticmethod
@@ -196,7 +195,6 @@ class CCAHook(object):
             raise RuntimeError("tensors' shapes are incompatible!")
         tensor1 = CCAHook._conv1d_reshape(tensor1, size)
         tensor2 = CCAHook._conv1d_reshape(tensor2, size)
-        #print("shapepepepe: {}".format(tensor1.shape))
         return torch.Tensor([cca_function(t1, t2)
                              for t1, t2 in zip(tensor1, tensor2)]).mean()
 

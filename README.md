@@ -1,3 +1,5 @@
+**This library is deprecated in favor of [anatome](https://github.com/moskomule/anatome). I will no longer support this repository.**
+
 # CCA.pytorch
 
 PyTorch implementation of 

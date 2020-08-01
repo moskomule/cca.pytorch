@@ -48,6 +48,8 @@ def _cca(x, y, method):
     :param method: computational method "svd"  or "qr"
     :return: _cca vectors for input x, _cca vectors for input y, canonical correlations
     """
+    #print("_cca x_shape: {}".format(x.shape))
+    #print("_cca y_shape: {}".format(y.shape))
     assert x.size(0) == y.size(0), f"Number of data needs to be same but {x.size(0)} and {y.size(0)}"
     assert x.size(0) >= x.size(1) and y.size(0) >= y.size(1), f"data[0] should be larger than data[1]"
     assert method in ("svd", "qr"), "Unknown method"
@@ -99,7 +101,7 @@ class CCAHook(object):
     :param svd_device:
     """
 
-    _supported_modules = (nn.Conv2d, nn.Linear)
+    _supported_modules = (nn.Conv1d, nn.Conv2d, nn.Linear)
     _cca_distance_function = {"svcca": svcca_distance,
                               "pwcca": pwcca_distance}
 
@@ -155,10 +157,14 @@ class CCAHook(object):
             raise RuntimeError("tensor dimensions are incompatible!")
         tensor1 = tensor1.to(self._svd_device)
         tensor2 = tensor2.to(self._svd_device)
+        
         if isinstance(self._module, nn.Linear):
             return self._cca_distance(tensor1, tensor2).item()
+        elif isinstance(self._module, nn.Conv1d):
+            return CCAHook._conv1d(tensor1, tensor2, self._cca_distance, size).item()
         elif isinstance(self._module, nn.Conv2d):
             return CCAHook._conv2d(tensor1, tensor2, self._cca_distance, size).item()
+
 
     def _register_hook(self):
 
@@ -173,14 +179,36 @@ class CCAHook(object):
         return self._hooked_value
 
     @staticmethod
+    def _conv1d_reshape(tensor, size):
+        b, c, l = tensor.shape
+        if size is not None:
+            if size > l:
+                raise RuntimeError(f"`size` should be smaller than the tensor's size but ({l})")
+            tensor = F.adaptive_avg_pool1d(tensor, size)
+            print("yes")
+        tensor = tensor.reshape(-1, c, 1).permute(2, 0, 1)
+        return tensor
+
+    @staticmethod
+    def _conv1d(tensor1, tensor2, cca_function, size):
+        if tensor1.shape != tensor2.shape:
+            raise RuntimeError("tensors' shapes are incompatible!")
+        tensor1 = CCAHook._conv1d_reshape(tensor1, size)
+        tensor2 = CCAHook._conv1d_reshape(tensor2, size)
+        return torch.Tensor([cca_function(t1, t2)
+                             for t1, t2 in zip(tensor1, tensor2)]).mean()
+
+    @staticmethod
     def _conv2d_reshape(tensor, size):
         b, c, h, w = tensor.shape
         if size is not None:
             if (size, size) > (h, w):
                 raise RuntimeError(f"`size` should be smaller than the tensor's size but ({h}, {w})")
             tensor = F.adaptive_avg_pool2d(tensor, size)
+            
         tensor = tensor.reshape(b, c, -1).permute(2, 0, 1)
         return tensor
+
 
     @staticmethod
     def _conv2d(tensor1, tensor2, cca_function, size):
